@@ -86,7 +86,7 @@ public final class InterfaceDebug {
 
         // Full dump to file only; summary to console (avoid flooding the ImGui console).
         writeToFile(script, lines);
-        script.println("Dumped " + openCount + " open interface(s) to pop-dump.txt");
+        script.log("Dumped " + openCount + " open interface(s) to pop-dump.txt");
     }
 
     /** Dump ALL components of one interface by id (even if it isn't "open"). */
@@ -125,7 +125,7 @@ public final class InterfaceDebug {
         // Write the full dump to the FILE, but only a summary to the in-client console
         // — printing 1000+ lines to the ImGui console freezes the client.
         writeToFile(script, lines);
-        script.println("Dumped interface " + interfaceId + " (" + shown + " components) to pop-dump.txt");
+        script.log("Dumped interface " + interfaceId + " (" + shown + " components) to pop-dump.txt");
     }
 
     /**
@@ -142,14 +142,14 @@ public final class InterfaceDebug {
         Component c = ComponentQuery.newQuery(interfaceId).componentIndex(component).results().first();
         if (c == null) {
             lines.add("  component not found (is that interface open?)");
-            for (String l : lines) script.println(l);
+            for (String l : lines) script.log(l);
             writeToFile(script, lines);
             return;
         }
         lines.add("  before: text='" + safe(c.getText()) + "' options=" + cleanOptions(c.getOptions()));
         boolean result = useOption ? c.interact(option) : c.interact();
         lines.add("  interact() returned " + result);
-        for (String l : lines) script.println(l);
+        for (String l : lines) script.log(l);
         writeToFile(script, lines);
 
         // Dump the resulting state immediately (non-blocking). If you need to see
@@ -210,7 +210,7 @@ public final class InterfaceDebug {
         }
         lines.add("=== END location dump ===");
 
-        for (String l : lines) script.println(l);
+        for (String l : lines) script.log(l);
         writeToFile(script, lines);
     }
 
@@ -223,9 +223,9 @@ public final class InterfaceDebug {
             out.append(System.lineSeparator());
             Files.write(DUMP_FILE, out.toString().getBytes(StandardCharsets.UTF_8),
                     StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-            script.println("Dump also written to: " + DUMP_FILE);
+            script.log("Dump also written to: " + DUMP_FILE);
         } catch (IOException e) {
-            script.println("Could not write dump file (" + DUMP_FILE + "): " + e.getMessage());
+            script.log("Could not write dump file (" + DUMP_FILE + "): " + e.getMessage());
         }
     }
 

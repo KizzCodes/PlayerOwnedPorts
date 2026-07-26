@@ -247,9 +247,9 @@ public final class PortsData {
     public static final int PORT_ENTRY_X = 3034;
     public static final int PORT_ENTRY_Y = 3246;
     public static final int PORT_ENTRY_Z = 0;
-    /** If further than this many tiles from the entry tile, lodestone first;
-     *  within it, just walk (portal renders → interact "Enter"). */
-    public static final int LODESTONE_DISTANCE = 45;
+    /** Region of the port entry tile (Port Sarim). Used to VERIFY travel actually
+     *  arrived — Traverse.to picks a teleport by coordinate and can mis-teleport. */
+    public static final int PORT_ENTRY_REGION = 12082;
 
     // ── Reward popup ────────────────────────────────────────────────────────────
     // Collecting a returned voyage credits rewards directly (chat: "Congratulations!
