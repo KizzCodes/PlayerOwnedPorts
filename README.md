@@ -19,6 +19,8 @@ with automated checks and safe pacing (no blocking, no infinite loops).
 | Per-action automated checks + consecutive-fail backoff | ✅ working |
 | Black Market **auto-buy** | ⏳ config ready; buy flow needs the 1373/759/941 dumps |
 | Labeled detection: trade goods / building upgrades / crew-for-hire | ⏳ needs 1276/1486/trader dumps |
+| **Ship part optimization** (auto-fit best parts per voyage) | 🔭 planned — see below |
+| **Meg auto-answer** (weekly question → correct reply) | 🔭 planned — see below |
 
 ---
 
@@ -93,6 +95,45 @@ Each unlabeled screen is one dump away. With the screen open:
 Screens still needed:
 - **Black Market buy:** dump **1373** (items) and **759**/**941** (quantity/confirm), set item/qty/floor → wire guarded buy.
 - **Detection (detect-only):** dump **1276** (crew-for-hire), **1486** (upgrades), trader/black-market for labeled reporting.
+
+---
+
+## Planned features
+
+Both are additive: they slot into the existing sweep as their own opt-in,
+check-armed passes (same shape as the upgrade pass) and stay off by default.
+
+### Ship part optimization
+
+Today dispatch only *picks a voyage* for whatever the ship already has fitted.
+The bigger lever is the other side: for a given voyage, re-fit the ship with the
+parts that actually raise its success chance.
+
+- Read the ship-customisation screen: which parts are owned, which are fitted,
+  and what each contributes (seafaring / morale / combat / speed).
+- For the candidate voyage, fit the owned loadout that maximises success against
+  that voyage's requirement mix, then re-read `950:160` (overall success) to
+  confirm the swap helped — revert if it didn't.
+- Gate it: opt-in checkbox, dry-run mode first (report the recommended loadout
+  without swapping), and only re-fit when the voyage is otherwise below the
+  configured **min success %** — i.e. use it to rescue voyages we'd skip.
+- Needs a dump of the ship-customisation / part-selection interface (parts list,
+  slot buttons, per-part stat text). Same dump workflow as above.
+
+### Meg answers
+
+Meg is the recurring adventurer whose weekly question changes her voyage
+outcome. The question set is fixed, so this is a lookup, not a solver.
+
+- Detect Meg's dialog in the existing event/adventurer handler (`Ports`
+  dialog advance path) instead of blindly clicking through it.
+- Map question text → correct option via a static table in `PortsData`; match on
+  a normalised substring so minor punctuation/wording drift doesn't miss.
+- Unknown question → log the full question and the option list to
+  `pop-log.txt`, then fall back to today's behaviour (advance the dialog) so a
+  new question never stalls the sweep. Logged misses are how the table grows.
+- Opt-in checkbox alongside "Handle events / adventurers"; report the answered
+  question in the Port Status output.
 
 ---
 
