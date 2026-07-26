@@ -19,12 +19,9 @@ public class PortsConfig {
     // ── Scope toggles (map 1:1 to the feature checkboxes) ──────────────────────
     public boolean collectFinishedVoyages = true;
     public boolean autoDispatchVoyages    = true;
-    public boolean manageResources        = false;
     public boolean handleEvents           = true;
-    /** Navigate to the port (lodestone + walk) and open the port screen if needed. */
+    /** Navigate to the port and open the port screen if needed. */
     public boolean autoTravel             = true;
-    /** Allow lodestone teleport when far from the port. */
-    public boolean allowLodestone         = true;
 
     // ── Run cadence ────────────────────────────────────────────────────────────
     public RunMode runMode = RunMode.PERIODIC;
@@ -38,10 +35,6 @@ public class PortsConfig {
     // ── Black Market auto-buy ────────────────────────────────────────────────────
     /** Enable buying from the Black Market. */
     public boolean blackMarketBuy = false;
-    /** Component index in interface 1373 of the item to buy (from the shop dump). */
-    public int buyItemIndex = -1;
-    /** How many to buy per cycle. */
-    public int buyQuantity = 1;
     /** Never spend below this many chimes (hard floor — safety). */
     public int minChimesFloor = 0;
     /** Hard cap on chimes spent per Black-Market visit (safety, so a mis-read can't overspend). */
@@ -71,6 +64,9 @@ public class PortsConfig {
     public boolean upgradeDryRun = true;
 
     // ── Debug ──────────────────────────────────────────────────────────────────
+    /** Master debug switch: enables the pop-cmd.txt command file + interface-dump
+     *  tools (mapping scaffolding). Off for normal use / submission. */
+    public boolean debug = false;
     /** When on, logs every detection result + action + interface-opens + clicks. */
     public boolean verboseDebug = false;
     /** Trace varp/varbit changes too (very noisy — thousands per login). Off by default. */
@@ -80,10 +76,9 @@ public class PortsConfig {
         if (cfg == null) return;
         collectFinishedVoyages = bool(cfg, "collectFinishedVoyages", collectFinishedVoyages);
         autoDispatchVoyages    = bool(cfg, "autoDispatchVoyages", autoDispatchVoyages);
-        manageResources        = bool(cfg, "manageResources", manageResources);
         handleEvents           = bool(cfg, "handleEvents", handleEvents);
         autoTravel             = bool(cfg, "autoTravel", autoTravel);
-        allowLodestone         = bool(cfg, "allowLodestone", allowLodestone);
+        debug                  = bool(cfg, "debug", debug);
         verboseDebug           = bool(cfg, "verboseDebug", verboseDebug);
         traceVars              = bool(cfg, "traceVars", traceVars);
         blackMarketBuy         = bool(cfg, "blackMarketBuy", blackMarketBuy);
@@ -94,8 +89,6 @@ public class PortsConfig {
         intervalMinutes        = intVal(cfg, "intervalMinutes", intervalMinutes);
         fullRescanSweeps       = intVal(cfg, "fullRescanSweeps", fullRescanSweeps);
         minSuccessPercent      = intVal(cfg, "minSuccessPercent", minSuccessPercent);
-        buyItemIndex           = intVal(cfg, "buyItemIndex", buyItemIndex);
-        buyQuantity            = intVal(cfg, "buyQuantity", buyQuantity);
         minChimesFloor         = intVal(cfg, "minChimesFloor", minChimesFloor);
         blackMarketMaxSpend    = intVal(cfg, "blackMarketMaxSpend", blackMarketMaxSpend);
         if (cfg.containsKey("runMode")) {
@@ -108,10 +101,9 @@ public class PortsConfig {
         if (cfg == null) return;
         cfg.addProperty("collectFinishedVoyages", Boolean.toString(collectFinishedVoyages));
         cfg.addProperty("autoDispatchVoyages", Boolean.toString(autoDispatchVoyages));
-        cfg.addProperty("manageResources", Boolean.toString(manageResources));
         cfg.addProperty("handleEvents", Boolean.toString(handleEvents));
         cfg.addProperty("autoTravel", Boolean.toString(autoTravel));
-        cfg.addProperty("allowLodestone", Boolean.toString(allowLodestone));
+        cfg.addProperty("debug", Boolean.toString(debug));
         cfg.addProperty("verboseDebug", Boolean.toString(verboseDebug));
         cfg.addProperty("traceVars", Boolean.toString(traceVars));
         cfg.addProperty("blackMarketBuy", Boolean.toString(blackMarketBuy));
@@ -122,8 +114,6 @@ public class PortsConfig {
         cfg.addProperty("intervalMinutes", Integer.toString(intervalMinutes));
         cfg.addProperty("fullRescanSweeps", Integer.toString(fullRescanSweeps));
         cfg.addProperty("minSuccessPercent", Integer.toString(minSuccessPercent));
-        cfg.addProperty("buyItemIndex", Integer.toString(buyItemIndex));
-        cfg.addProperty("buyQuantity", Integer.toString(buyQuantity));
         cfg.addProperty("minChimesFloor", Integer.toString(minChimesFloor));
         cfg.addProperty("blackMarketMaxSpend", Integer.toString(blackMarketMaxSpend));
         cfg.addProperty("runMode", runMode.name());

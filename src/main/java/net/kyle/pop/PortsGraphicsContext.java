@@ -56,6 +56,9 @@ public class PortsGraphicsContext extends ScriptGraphicsContext {
         }
         ImGui.SameLine();
         text((running ? "● RUNNING" : "○ stopped") + "   —   " + nz(script.getStatus()));
+        if (!running && script.stopReason != null && !script.stopReason.isEmpty()) {
+            text("Stopped: " + script.stopReason);
+        }
         ImGui.Separator();
     }
 
@@ -142,8 +145,6 @@ public class PortsGraphicsContext extends ScriptGraphicsContext {
             if (dispatch != cfg.autoDispatchVoyages) { cfg.autoDispatchVoyages = dispatch; changed = true; }
             boolean events = ImGui.Checkbox("Handle events / adventurers", cfg.handleEvents);
             if (events != cfg.handleEvents) { cfg.handleEvents = events; changed = true; }
-            boolean resources = ImGui.Checkbox("Manage resources / bazaar", cfg.manageResources);
-            if (resources != cfg.manageResources) { cfg.manageResources = resources; changed = true; }
 
             if (cfg.autoDispatchVoyages) {
                 ImGui.SeparatorText("Dispatch");
@@ -161,8 +162,6 @@ public class PortsGraphicsContext extends ScriptGraphicsContext {
             ImGui.SeparatorText("Travel");
             boolean travel = ImGui.Checkbox("Auto-travel to port & open screen", cfg.autoTravel);
             if (travel != cfg.autoTravel) { cfg.autoTravel = travel; changed = true; }
-            boolean lode = ImGui.Checkbox("Allow lodestone teleport", cfg.allowLodestone);
-            if (lode != cfg.allowLodestone) { cfg.allowLodestone = lode; changed = true; }
 
             ImGui.SeparatorText("Black Market");
             boolean bm = ImGui.Checkbox("Auto-buy from Black Market", cfg.blackMarketBuy);
@@ -224,6 +223,8 @@ public class PortsGraphicsContext extends ScriptGraphicsContext {
             boolean changed = false;
 
             ImGui.SeparatorText("Logging");
+            boolean dbg = ImGui.Checkbox("Debug tools (pop-cmd.txt + interface dumps)", cfg.debug);
+            if (dbg != cfg.debug) { cfg.debug = dbg; changed = true; }
             boolean verbose = ImGui.Checkbox("Verbose debug logging", cfg.verboseDebug);
             if (verbose != cfg.verboseDebug) { cfg.verboseDebug = verbose; changed = true; }
             boolean tv = ImGui.Checkbox("Trace varbits/varps (very noisy)", cfg.traceVars);

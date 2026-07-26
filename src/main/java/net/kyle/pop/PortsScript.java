@@ -122,6 +122,12 @@ public class PortsScript extends LoopingScript {
     private String lastFailedCheck = null;
     private int consecutiveFails = 0;
     private static final int MAX_CONSECUTIVE_FAILS = 4;
+    /** Backoffs before a hard auto-stop (so we don't idle-loop forever on an
+     *  unrecoverable problem instead of surfacing it). */
+    private int backoffCount = 0;
+    private static final int MAX_BACKOFFS = 3;
+    /** Why the script auto-stopped (shown in the GUI header). Empty = running/manual. */
+    public volatile String stopReason = "";
 
     public PortsScript(String name, ScriptConfig scriptConfig, ScriptDefinition definition) {
         super(name, scriptConfig, definition);
@@ -175,7 +181,9 @@ public class PortsScript extends LoopingScript {
             emit("[NAV] onLoop Traverse.to port entry " + PortsData.PORT_ENTRY_X + "," + PortsData.PORT_ENTRY_Y);
             boolean ok = net.botwithus.api.game.world.Traverse.to(new net.botwithus.rs3.game.Coordinate(
                     PortsData.PORT_ENTRY_X, PortsData.PORT_ENTRY_Y, PortsData.PORT_ENTRY_Z));
-            emit("[NAV] onLoop traverse returned " + ok);
+            int reg = playerRegionId();
+            emit("[NAV] onLoop traverse returned " + ok + " region=" + reg
+                    + (reg == PortsData.PORT_ENTRY_REGION ? " (arrived)" : " (not port region)"));
         } catch (Throwable t) {
             emit("[NAV][ERR] onLoop " + t);
         }
@@ -186,46 +194,36 @@ public class PortsScript extends LoopingScript {
         LocalPlayer player = Client.getLocalPlayer();
         Client.GameState gameState = Client.getGameState();
 
-        // External command interface (I control mapping/clicks via pop-cmd.txt).
-        handleCommandFile();
+        // Debug/mapping scaffolding (pop-cmd.txt command file + interface-dump tools)
+        // runs only when the debug switch is on — off for normal use / submission.
+        if (config.debug) {
+            handleCommandFile();
 
-        // While paused (for mapping), only commands run — no autonomous gameplay.
-        if (mappingPause) {
-            setStatus("Paused (mapping)");
-            return;
-        }
+            // While paused (for mapping), only commands run — no autonomous gameplay.
+            if (mappingPause) {
+                setStatus("Paused (mapping)");
+                return;
+            }
 
-        // Debug tools run regardless of login state.
-        if (dumpRequested) {
-            dumpRequested = false;
-            try {
-                InterfaceDebug.dumpOpenInterfaces(this);
-            } catch (Exception e) {
-                println("Debug dump failed: " + e.getMessage());
+            if (dumpRequested) {
+                dumpRequested = false;
+                try { InterfaceDebug.dumpOpenInterfaces(this); }
+                catch (Exception e) { emit("[ERR] Debug dump failed: " + e.getMessage()); }
             }
-        }
-        if (dumpLocationRequested) {
-            dumpLocationRequested = false;
-            try {
-                InterfaceDebug.dumpLocation(this);
-            } catch (Exception e) {
-                println("Location dump failed: " + e.getMessage());
+            if (dumpLocationRequested) {
+                dumpLocationRequested = false;
+                try { InterfaceDebug.dumpLocation(this); }
+                catch (Exception e) { emit("[ERR] Location dump failed: " + e.getMessage()); }
             }
-        }
-        if (dbgInteractRequested) {
-            dbgInteractRequested = false;
-            try {
-                InterfaceDebug.testInteract(this, dbgInterface, dbgComponent, dbgOption);
-            } catch (Exception e) {
-                println("Test interact failed: " + e.getMessage());
+            if (dbgInteractRequested) {
+                dbgInteractRequested = false;
+                try { InterfaceDebug.testInteract(this, dbgInterface, dbgComponent, dbgOption); }
+                catch (Exception e) { emit("[ERR] Test interact failed: " + e.getMessage()); }
             }
-        }
-        if (dbgDumpInterfaceRequested) {
-            dbgDumpInterfaceRequested = false;
-            try {
-                InterfaceDebug.dumpInterface(this, dbgInterface);
-            } catch (Exception e) {
-                println("Dump interface failed: " + e.getMessage());
+            if (dbgDumpInterfaceRequested) {
+                dbgDumpInterfaceRequested = false;
+                try { InterfaceDebug.dumpInterface(this, dbgInterface); }
+                catch (Exception e) { emit("[ERR] Dump interface failed: " + e.getMessage()); }
             }
         }
 
@@ -277,11 +275,11 @@ public class PortsScript extends LoopingScript {
                 emit("[SCAN] crew database scan finished");
                 crewScanner = null;
                 refreshCrewDbCount();
-                cooldownUntilTick = tickCounter + ACTION_COOLDOWN_TICKS;
+                cooldownUntilTick = tickCounter + cooldownTicks();
                 return;
             }
             boolean actedScan = crewScanner.step();
-            if (actedScan) cooldownUntilTick = tickCounter + ACTION_COOLDOWN_TICKS;
+            if (actedScan) cooldownUntilTick = tickCounter + cooldownTicks();
             setStatus("Scanning crew…");
             return;
         }
@@ -296,11 +294,11 @@ public class PortsScript extends LoopingScript {
                 // Force a fresh dispatch attempt on the retried slot(s).
                 exhaustedSlots.clear();
                 dispatchStep = 0;
-                cooldownUntilTick = tickCounter + ACTION_COOLDOWN_TICKS;
+                cooldownUntilTick = tickCounter + cooldownTicks();
                 return;
             }
             boolean actedCrew = crewOptimizer.step();
-            if (actedCrew) cooldownUntilTick = tickCounter + ACTION_COOLDOWN_TICKS;
+            if (actedCrew) cooldownUntilTick = tickCounter + cooldownTicks();
             setStatus("Optimizing crew…");
             return;
         }
@@ -311,11 +309,11 @@ public class PortsScript extends LoopingScript {
             if (upgradeManager.isDone()) {
                 upgradeManager = null;
                 upgradeDoneThisSweep = true;
-                cooldownUntilTick = tickCounter + ACTION_COOLDOWN_TICKS;
+                cooldownUntilTick = tickCounter + cooldownTicks();
                 return;
             }
             boolean actedUp = upgradeManager.step();
-            if (actedUp) cooldownUntilTick = tickCounter + ACTION_COOLDOWN_TICKS;
+            if (actedUp) cooldownUntilTick = tickCounter + cooldownTicks();
             setStatus(config.upgradeDryRun ? "Checking upgrades…" : "Upgrading buildings…");
             return;
         }
@@ -400,7 +398,7 @@ public class PortsScript extends LoopingScript {
         }
 
         if (acted) {
-            cooldownUntilTick = tickCounter + ACTION_COOLDOWN_TICKS;
+            cooldownUntilTick = tickCounter + cooldownTicks();
         }
     }
 
@@ -425,6 +423,7 @@ public class PortsScript extends LoopingScript {
             emit("[CHECK] PASS " + checkName);
             consecutiveFails = 0;
             lastFailedCheck = null;
+            backoffCount = 0;
             checkCond = null;
             return false;
         }
@@ -452,13 +451,18 @@ public class PortsScript extends LoopingScript {
                 consecutiveFails = 1;
             }
             if (consecutiveFails >= MAX_CONSECUTIVE_FAILS) {
-                emit("[CHECK] backoff — '" + checkName + "' failed " + consecutiveFails
-                        + "x; idling 2 min then retrying fresh.");
-                setStatus("Backoff: " + checkName + " failing — idling");
-                idleUntilMs = System.currentTimeMillis() + 120_000L;
                 consecutiveFails = 0;
                 lastFailedCheck = null;
                 dispatchStep = 0;
+                if (++backoffCount >= MAX_BACKOFFS) {
+                    // Don't idle-loop forever — hard-stop and surface why.
+                    autoStop("repeated failures on '" + checkName + "'");
+                } else {
+                    emit("[CHECK] backoff " + backoffCount + "/" + MAX_BACKOFFS + " — '" + checkName
+                            + "' failing; idling 2 min then retrying fresh.");
+                    setStatus("Backoff: " + checkName + " failing — idling");
+                    idleUntilMs = System.currentTimeMillis() + 120_000L;
+                }
             }
             checkCond = null;
             return false;
@@ -524,21 +528,22 @@ public class PortsScript extends LoopingScript {
         }
 
         // Step 0: not in the scene → travel to the port entry coordinate. Traverse.to
-        // auto-selects the correct teleport BY COORDINATE (the Lodestone.PORT_SARIM
-        // enum is misaligned in this client and teleports to Seers Village), then
-        // walks. But Traverse.to BLOCKS via Execution.delayUntil, so it must NOT run
-        // on the tick thread — we run it on a daemon thread and just wait here.
+        // picks a teleport BY COORDINATE (we avoid Lodestone.PORT_SARIM.teleport() — its
+        // enum is misaligned in this client and lands at Seers Village). Traverse.to
+        // BLOCKS (Execution.delayUntil) and its game queries require the SCRIPT thread,
+        // so we only flag the request here; onLoop() (the script thread) runs the actual
+        // travel. Never call Traverse.to on this (ServerTickedEvent) thread.
         if (!config.autoTravel) {
-            warnOnce("Not at the port and auto-travel is off — enable 'Auto-travel to port & open screen'.");
+            warnOnce("Not at the port and auto-travel is off — enable 'Auto-travel to port'.");
             setStatus("Not at port (auto-travel off)");
             return false;
         }
-        // Traverse.to BLOCKS (Execution.delayUntil) and its game queries require the
-        // SCRIPT thread (they throw "Not on script thread" off it). So we only flag
-        // the request here; onLoop() (the script's own loop thread) runs the actual
-        // travel. Never call Traverse.to on this (ServerTickedEvent) thread.
         travelRequested = true;
         setStatus("Travelling to port…");
+        // VERIFY arrival — Traverse.to can mis-teleport, so confirm we reached the port
+        // region / hub within the deadline instead of assuming it worked.
+        armCheck("travelled-to-port", 50, () ->
+                playerRegionId() == PortsData.PORT_ENTRY_REGION || Ports.isHubOpen() || Ports.isPortOpen());
         return false;
     }
 
@@ -766,7 +771,8 @@ public class PortsScript extends LoopingScript {
             emit("[SCAN] periodic full crew rescan due (every " + config.fullRescanSweeps + " sweeps)");
         }
 
-        idleUntilMs = System.currentTimeMillis() + (long) config.intervalMinutes * 60_000L;
+        idleUntilMs = System.currentTimeMillis()
+                + (long) config.intervalMinutes * 60_000L + random.nextInt(120_000); // +0-2min jitter
         setStatus("Sweep complete — idling " + config.intervalMinutes + " min");
         emit("Sweep complete — idling for " + config.intervalMinutes + " min.");
     }
@@ -776,9 +782,21 @@ public class PortsScript extends LoopingScript {
 
     // ── Helpers used by Ports / GUI ──────────────────────────────────────────────
 
-    public long randomDelay(int minMs, int maxMs) {
-        if (maxMs <= minMs) return minMs;
-        return minMs + random.nextInt(maxMs - minMs);
+    /** Action cooldown in ticks with light jitter, so pacing isn't perfectly regular. */
+    private long cooldownTicks() {
+        return ACTION_COOLDOWN_TICKS + random.nextInt(3);   // 3-5 ticks
+    }
+
+    private int playerRegionId() {
+        LocalPlayer p = Client.getLocalPlayer();
+        return (p != null && p.getCoordinate() != null) ? p.getCoordinate().getRegionId() : -1;
+    }
+
+    /** Hard-stop the script and record why (surfaced in the GUI header + logged). */
+    private void autoStop(String reason) {
+        stopReason = reason;
+        emit("[STOP] " + reason);
+        setRunning(false);
     }
 
     public void warnOnce(String message) {
@@ -977,7 +995,7 @@ public class PortsScript extends LoopingScript {
         if (userRunning == run) return;
         userRunning = run;
         travelRequested = false;
-        if (run) scanOnStart = true; // auto-rescan crew + captains once at the port
+        if (run) { scanOnStart = true; stopReason = ""; backoffCount = 0; } // fresh start
         setStatus(run ? "Started" : "Stopped — press Start");
         emit("[CTRL] " + (run ? "STARTED" : "STOPPED") + " by user");
     }
